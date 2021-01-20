@@ -1,0 +1,133 @@
+---
+title: "Dashboard cosmetics e-shop"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(dplyr)
+library(ggplot2)
+data <- read.table('data/2020-Feb.csv', sep=',', dec='.', na.strings=c(" ", ""), header = T, encoding = "UTF-8") 
+final_result <- list()
+
+priprava_dat <- function(df){
+  # prevod event_time do formatu datumu
+  df$event_time <- as.Date(df$event_time)
+  
+  # prevod category_id do citelniho formatu
+  df$category_id <- as.character(df$category_id)
+  
+  # pro vyber si zalozim stloupce day, month a week
+  df <- df %>% mutate(week = cut.Date(event_time, breaks = "1 week", labels = FALSE)) %>% arrange(event_time)
+  df <- df %>% mutate(day = cut.Date(event_time, breaks = "1 day", labels = FALSE)) %>% arrange(event_time)
+  
+  return(df)
+}
+na_delete <- function(df, cols){
+  return(df[complete.cases(df[cols]), ]) # vyloucim pozorovani, ktere maji na hodnoty krome category_code a brand
+}
+count_mounth_statistics <- function(df){
+  objednane_produkty = df %>% filter(event_type == 'purchase')
+  
+  prijem <- sum(objednane_produkty$price)
+  
+  objednavky <- objednane_produkty %>% group_by(user_session) %>% summarize(sum = sum(price), .groups='drop') 
+  prumer_objednavky <- mean(objednavky$sum) 
+  objednavky_count <- nrow(objednavky)
+  rm(objednavky)
+  visits <- df %>% group_by(user_session) %>% summarize(user_id = first(user_id), .groups='drop') %>% nrow()
+  konverze_visit_buy <- objednavky_count*100/visits
+  
+  produkty <- objednane_produkty$product_id
+  popularny <- which.max(tabulate(produkty))
+  rm(produkty)
+  
+  zobrazene_produkty <- df %>% filter(event_type == 'view')
+  zobrazene_produkty <- zobrazene_produkty$product_id
+  popularny2 <- which.max(tabulate(zobrazene_produkty))
+  rm(produkty)
+  
+  
+  navstevniky <- length(unique(df$user_id))
+  
+  results <- list(prijem = prijem, prumer_objednavky = prumer_objednavky, objednavky_count = objednavky_count, konverze_visit_buy = konverze_visit_buy, navstevniky = navstevniky, popularny = popularny, popularny2 = popularny2)
+  return(results)
+}
+
+data <- na_delete(data, colnames(data)[-c(5,6)])
+data <- priprava_dat(data)
+
+mounth_statistics <- count_mounth_statistics(data)
+
+
+
+```
+
+Row
+-----------------------------------------------------------------------
+
+### Měsíční příjem
+
+```{r}
+
+#valueBox(mounth_statistics$prijem, icon = "fa-pencil")
+#message(paste0('Měsíční příjem: ', mounth_statistics$prijem))
+gauge(mounth_statistics$prijem, min = 0, max = 1606289)
+```
+
+Row
+-----------------------------------------------------------------------
+
+### Konverze a průměrná hodnota objednávky
+
+```{r}
+message(paste0('Měsíční konverze: ', mounth_statistics$konverze_visit_buy))
+
+```
+
+### Průměrná hodnota objednávky
+
+```{r}
+message(paste0('Měsíční průměrná hodnota objednávky: ', mounth_statistics$prumer_objednavky))
+
+```
+Row
+-----------------------------------------------------------------------
+
+### Měsíční návštěvy
+
+```{r}
+#message(paste0('Měsíční návštěvy: ', mounth_statistics$navstevniky))
+valueBox(mounth_statistics$navstevniky, icon = "fa-male")
+
+
+```
+
+-----------------------------------------------------------------------
+
+### Měsíční objednávky
+```{r}
+#message(paste0('Měsíční objednávky: ', mounth_statistics$objednavky_count))
+valueBox(mounth_statistics$objednavky_count, icon = "fa-shopping-cart")
+```
+
+Row
+-----------------------------------------------------------------------
+
+### Nejprodávanější zboží
+```{r}
+par(bg="transparent")
+cat('Zboží s největším počtem objednávek: ', mounth_statistics$popularny)
+
+```
+
+-----------------------------------------------------------------------
+
+### Nejoblíbenější zboží
+```{r}
+paste0('Zboží s největším počtem zobrazení: ', mounth_statistics$popularny2)
+
+```
