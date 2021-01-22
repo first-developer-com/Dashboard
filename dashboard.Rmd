@@ -3,66 +3,88 @@ title: "Dashboard cosmetics e-shop"
 output: 
   flexdashboard::flex_dashboard:
     orientation: rows
+    vertical_layout: scroll
 
 ---
 
 ```{r setup, include=FALSE}
+
+
 library(flexdashboard)
 library(dplyr)
 library(ggplot2)
+library(plotly)
+
 data <- read.table('data/2020-Feb.csv', sep=',', dec='.', na.strings=c(" ", ""), header = T, encoding = "UTF-8") 
 final_result <- list()
 
+
 priprava_dat <- function(df){
-  # prevod event_time do formatu datumu
   df$event_time <- as.Date(df$event_time)
-  
-  # prevod category_id do citelniho formatu
   df$category_id <- as.character(df$category_id)
-  
-  # pro vyber si zalozim stloupce day, month a week
-  df <- df %>% mutate(week = cut.Date(event_time, breaks = "1 week", labels = FALSE)) %>% arrange(event_time)
   df <- df %>% mutate(day = cut.Date(event_time, breaks = "1 day", labels = FALSE)) %>% arrange(event_time)
-  
   return(df)
 }
+
 na_delete <- function(df, cols){
-  return(df[complete.cases(df[cols]), ]) # vyloucim pozorovani, ktere maji na hodnoty krome category_code a brand
+  return(df[complete.cases(df[cols]), ])
 }
+
+data <- na_delete(data, colnames(data)[-c(5,6)])
+data <- priprava_dat(data)
+
 count_mounth_statistics <- function(df){
   objednane_produkty = df %>% filter(event_type == 'purchase')
-  
   prijem <- sum(objednane_produkty$price)
-  
   objednavky <- objednane_produkty %>% group_by(user_session) %>% summarize(sum = sum(price), .groups='drop') 
   prumer_objednavky <- mean(objednavky$sum) 
   objednavky_count <- nrow(objednavky)
   rm(objednavky)
   visits <- df %>% group_by(user_session) %>% summarize(user_id = first(user_id), .groups='drop') %>% nrow()
   konverze_visit_buy <- objednavky_count*100/visits
-  
   produkty <- objednane_produkty$product_id
   popularny <- which.max(tabulate(produkty))
   rm(produkty)
-  
   zobrazene_produkty <- df %>% filter(event_type == 'view')
   zobrazene_produkty <- zobrazene_produkty$product_id
   popularny2 <- which.max(tabulate(zobrazene_produkty))
-  rm(produkty)
-  
-  
+  rm(zobrazene_produkty)
   navstevniky <- length(unique(df$user_id))
-  
   results <- list(prijem = prijem, prumer_objednavky = prumer_objednavky, objednavky_count = objednavky_count, konverze_visit_buy = konverze_visit_buy, navstevniky = navstevniky, popularny = popularny, popularny2 = popularny2)
   return(results)
 }
 
-data <- na_delete(data, colnames(data)[-c(5,6)])
-data <- priprava_dat(data)
+count_day_statistics <- function(df){
+  objednane_produkty = df %>% filter(event_type == 'purchase')
+  prijem <- sum(objednane_produkty$price)
+  objednavky <- objednane_produkty %>% group_by(user_session) %>% summarize(sum = sum(price), .groups='drop') 
+  prumer_objednavky <- mean(objednavky$sum) 
+  objednavky_count <- nrow(objednavky)
+  results <- list(prijem = prijem, prumer_objednavky = prumer_objednavky, objednavky_count = objednavky_count)
+  return(results)
+}
 
 mounth_statistics <- count_mounth_statistics(data)
+day_statistics <- list()
+for(a in 1:max(data$day)){
+  day <- data %>% filter(day == a) %>% count_day_statistics()
+  list_name = paste0('day', a)
+  day_statistics[[list_name]] <- day
+}
+    
+final_result <- list()
+final_result[['day_prijmy']] <- data.frame(day=seq(1,max(data$day)), prijem=rep(NA, max(data$day)))
+final_result[['day_objednavka_mean']] <- data.frame(day=seq(1,max(data$day)), prumer=rep(NA, max(data$day)))
+final_result[['day_objednavky_count']] <- data.frame(day=seq(1,max(data$day)), count=rep(NA, max(data$day)))
+for(page in 1:max(data$day)){
+      final_result[['day_prijmy']][page, 2] <-day_statistics[[page]]$prijem
+      final_result[['day_objednavka_mean']][page, 2] <-day_statistics[[page]]$prumer_objednavky
+      final_result[['day_objednavky_count']][page, 2] <-day_statistics[[page]]$objednavky_count
+}
 
-
+p1 <- ggplot(data=final_result[['day_prijmy']], aes(x=day, y=prijem, group = 1))+geom_line()+geom_line(aes(y=mean(prijem)))+geom_point()+labs(x='Dny', y='Příjmy', title="Graf příjmů podle dnů")
+p2<-ggplot(data=final_result[['day_objednavka_mean']], aes(x=day, y=prumer, group = 1))+geom_line()+geom_line(aes(y=mean(prumer))) + geom_point()+labs(x='Dny', y='Průměrná hodnota', title="Průměr objednávky podle dnů")
+p3 <-ggplot(data=final_result[['day_objednavky_count']], aes(x=day, y=count, group = 1))+geom_line()+geom_line(aes(y=mean(count)))  + geom_point()+labs(x='Dny', y='Počet', title="Počet objednávek podle dnů")
 
 ```
 
@@ -70,64 +92,102 @@ Row
 -----------------------------------------------------------------------
 
 ### Měsíční příjem
+<div style="display:flex; justify-content:space-around">
+<div style="width: 30%">
+
+<div style="margin-top:150px">
 
 ```{r}
-
-#valueBox(mounth_statistics$prijem, icon = "fa-pencil")
-#message(paste0('Měsíční příjem: ', mounth_statistics$prijem))
-gauge(mounth_statistics$prijem, min = 0, max = 1606289)
+gauge(mounth_statistics$prijem, min = 0, max = 1606289,  gaugeSectors(success = c(1200000, 1606289), warning = c(800000, 1200000), danger = c(0, 800000)))
 ```
+</div>
+<div>
+<p class="vyrazne">`r as.character(mounth_statistics$prijem)`</p>
+</div>
+
+</div>
+
+<div style="width: 70%">
+```{r}
+ggplotly(p1)%>%layout(margin = list(t = 50, b = 50, l = 20,r = 20))
+
+```
+
+
+</div>
+</div>
 
 Row
 -----------------------------------------------------------------------
-
-### Konverze a průměrná hodnota objednávky
-
-```{r}
-message(paste0('Měsíční konverze: ', mounth_statistics$konverze_visit_buy))
-
-```
 
 ### Průměrná hodnota objednávky
+<p class="title">Měsíční průměrná hodnota objednávky
+<span class="vyrazne">`r round(mounth_statistics$prumer_objednavky,2)`</span>
+</p>
+
 
 ```{r}
-message(paste0('Měsíční průměrná hodnota objednávky: ', mounth_statistics$prumer_objednavky))
-
+ggplotly(p2)%>%layout(margin = list(t = 70,b = 50, l = 20,r = 20))
 ```
+
+
+
+### Měsíční objednávky
+
+<p class="title">Počet objednávek za měsíc
+<span class="vyrazne">`r mounth_statistics$objednavky_count`</span>
+</p>
+
+
+```{r}
+ggplotly(p3)%>%layout(margin = list(t = 70, b = 50, l = 20,r = 20))
+```
+
 Row
 -----------------------------------------------------------------------
+
+### Měsíční konverze
+```{r}
+  valueBox(round(mounth_statistics$konverze_visit_buy, 2), icon = "fa-shopping-cart")
+```
+
+
 
 ### Měsíční návštěvy
 
+
 ```{r}
-#message(paste0('Měsíční návštěvy: ', mounth_statistics$navstevniky))
 valueBox(mounth_statistics$navstevniky, icon = "fa-male")
-
-
 ```
 
------------------------------------------------------------------------
 
-### Měsíční objednávky
-```{r}
-#message(paste0('Měsíční objednávky: ', mounth_statistics$objednavky_count))
-valueBox(mounth_statistics$objednavky_count, icon = "fa-shopping-cart")
-```
+
 
 Row
 -----------------------------------------------------------------------
 
 ### Nejprodávanější zboží
-```{r}
-par(bg="transparent")
-cat('Zboží s největším počtem objednávek: ', mounth_statistics$popularny)
+<p class="title">Zboží s největším počtem objednávek</p>
+<p class="vyrazne">`r mounth_statistics$popularny`</p>
 
-```
-
------------------------------------------------------------------------
 
 ### Nejoblíbenější zboží
-```{r}
-paste0('Zboží s největším počtem zobrazení: ', mounth_statistics$popularny2)
+<p class="title">Zboží s největším počtem zobrazení</p>
+<p class="vyrazne">`r mounth_statistics$popularny`</p>
 
-```
+
+
+<style>
+	
+	p.title{
+    text-align:center;	  
+		font-size: 28px !important;
+		margin: 10px auto !important;
+
+	}
+	.vyrazne{
+	  text-align:center;
+		font-size: 35px !important;
+		font-weight: 800 !important;
+	}
+</style>
