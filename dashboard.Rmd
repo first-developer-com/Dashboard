@@ -127,7 +127,7 @@ Row
 
 
 ```{r}
-ggplotly(p2)%>%layout(margin = list(t = 70,b = 50, l = 20,r = 20))
+ggplotly(p2)%>%layout(margin = list(t = 70,b = 150, l = 20,r = 20))
 ```
 
 
@@ -140,7 +140,7 @@ ggplotly(p2)%>%layout(margin = list(t = 70,b = 50, l = 20,r = 20))
 
 
 ```{r}
-ggplotly(p3)%>%layout(margin = list(t = 70, b = 50, l = 20,r = 20))
+ggplotly(p3)%>%layout(margin = list(t = 70, b = 150, l = 20,r = 20))
 ```
 
 Row
@@ -166,13 +166,13 @@ valueBox(mounth_statistics$navstevniky, icon = "fa-male")
 Row
 -----------------------------------------------------------------------
 
-### Nejprodávanější zboží
-<p class="title">Zboží s největším počtem objednávek</p>
+### Nejprodávanější produkt  
+<p class="title">Produkt s největším počtem objednávek</p>
 <p class="vyrazne">`r mounth_statistics$popularny`</p>
 
 
-### Nejoblíbenější zboží
-<p class="title">Zboží s největším počtem zobrazení</p>
+### Nnejpopulárnější produkt
+<p class="title">Produkt s největším počtem zobrazení</p>
 <p class="vyrazne">`r mounth_statistics$popularny`</p>
 
 
